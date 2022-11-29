@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JSON - CSV Converter</title>
+    <meta name="description" content="JSON - CSV Converter" />
+    <meta property="og:title" content="JSON - CSV Converter" />
+    <meta property="og:type" content="website" />
+    <meta property="og:description" content="JSON - CSV Converter" />
+    <style>
+      .body {
+        width: 100%;
+        height: 100vh;
+        display: flex;
+      }
+
+      .jtoc {
+        align-items: center;
+        padding: 2rem;
+        border-right: 2px solid black;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        width: 100%;
+      }
+
+      .jtoc textarea {
+        width: 100%;
+        height: 100%;
+        resize: none;
+      }
+
+      button:hover {
+        cursor: pointer;
+      }
+
+      input {
+        height: 2rem;
+      }
+
+      .jtoc button {
+        width: 10rem;
+        height: 2rem;
+      }
+
+      .ctoj {
+        align-items: center;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        width: 100%;
+        padding: 2rem;
+      }
+
+      .ctoj button {
+        width: 10rem;
+        height: 2rem;
+      }
+
+      .ctoj textarea {
+        width: 100%;
+        height: 100%;
+        resize: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="body">
+      <div class="jtoc">
+        <h2>JSON to EXCEL/CSV</h2>
+        <input id="upload-text" type="file" onchange="UploadText()" />
+        <textarea id="json" cols="30" rows="50" style="resize: none"></textarea>
+        <div>
+          <button onclick="textToCSV()">GENERATE CSV</button>
+          <button onclick="textToEXCEL()">GENERATE EXCEL</button>
+        </div>
+      </div>
+      <div class="ctoj">
+        <h2>EXCEL/CSV to JSON</h2>
+        <div>
+          <input id="upload" type="file" onchange="Upload()" />
+          <button onclick="CSVToText()">GENERATE JSON</button>
+        </div>
+        <textarea
+          id="csvtojson"
+          cols="30"
+          rows="40"
+          style="resize: none"
+        ></textarea>
+      </div>
+    </div>
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.1/package/dist/xlsx.full.min.js"></script>
+    <script>
+      var text = "";
+      function Upload() {
+        var fileUpload = document.getElementById("upload");
+        var regex = /^(^[\w,\s-]+\.[A-Za-z]{3}$)+(.csv|.xlsx)$/;
+        console.log(fileUpload.value);
+        if (regex.test(fileUpload.value.toLowerCase())) {
+          if (typeof FileReader != "undefined") {
+            var reader = new FileReader();
+            reader.onload = () => {
+              if (fileUpload.value.includes(".csv")) {
+                text = reader.result;
+              } else {
+                var cfb = XLSX.read(reader.result, { type: "binary" });
+                cfb.SheetNames.forEach(function (sheetName) {
+                  var csv = XLSX.utils.sheet_to_csv(cfb.Sheets[sheetName]);
+                  text = csv;
+                });
+              }
+            };
+            reader.readAsBinaryString(fileUpload.files[0]);
+          } else {
+            alert("This browser does not support HTML5.");
+          }
+        } else {
+          alert("Please upload a valid XLSX/CSV file.");
+          document.getElementById("upload").value = "";
+        }
+      }
+
+      function CSVToText() {
+        var arrayOne = text.split("\n");
+        var header = arrayOne[0].split(",");
+        var noOfRow = arrayOne.length;
+        var noOfCol = header.length;
+        var jArray = [];
+        var i = 0,
+          j = 0;
+        for (i = 1; i < noOfRow - 1; i++) {
+          var obj = {};
+          var myNewLine = arrayOne[i].split(",");
+          for (j = 0; j < noOfCol; j++) {
+            var headerText = header[j];
+            var valueText = myNewLine[j];
+            obj[headerText] = valueText;
+          }
+          jArray.push(obj);
+        }
+        const universities = {};
+        jArray.map((data) => {
+          universities[data.Country] = [
+            ...(universities[data.Country] || []),
+            {
+              code: data.UniCode,
+              university: data["Name of University"],
+              city: data["City of University"],
+              country: data["Country of University"],
+            },
+          ];
+        });
+        document.getElementById("csvtojson").innerHTML = JSON.stringify(
+          universities,
+          undefined,
+          4
+        );
+      }
+
+      function UploadText() {
+        var fileUpload = document.getElementById("upload-text");
+        var regex = /^([a-zA-Z0-9\s_\\.\-:])+(.txt|.json)$/;
+        if (regex.test(fileUpload.value.toLowerCase())) {
+          if (typeof FileReader != "undefined") {
+            var reader = new FileReader();
+            reader.onload = () => {
+              document.getElementById("json").innerHTML = reader.result;
+            };
+            reader.readAsBinaryString(fileUpload.files[0]);
+          } else {
+            alert("This browser does not support HTML5.");
+          }
+        } else {
+          alert("Please upload a TXT/JSON file.");
+          document.getElementById("upload-text").value = "";
+        }
+      }
+
+      function textToCSV() {
+        var universities = JSON.parse(document.getElementById("json").value);
+        const modifiedUniversities = [];
+        Object.keys(universities).map((key) => {
+          universities[key].map((data) => {
+            modifiedUniversities.push({
+              Country: key,
+              UniCode: data.code,
+              "Name of University": data.university,
+              "City of University": data.city,
+              "Country of University": data.country,
+            });
+          });
+        });
+
+        const replacer = (key, value) => (value === null ? "" : value);
+        const header = Object.keys(modifiedUniversities[0]);
+        const csv = [
+          header.join(","),
+          ...modifiedUniversities.map((row) =>
+            header.map((key) => JSON.stringify(row[key], replacer)).join(",")
+          ),
+        ].join("\r\n");
+
+        var encodedUri = encodeURI("data:text/csv;charset=utf-8," + csv);
+        var link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "converted_data.csv");
+        document.body.appendChild(link);
+        link.click();
+      }
+
+      function textToEXCEL() {
+        var universities = JSON.parse(document.getElementById("json").value);
+        const modifiedUniversities = [];
+        Object.keys(universities).map((key) => {
+          universities[key].map((data) => {
+            modifiedUniversities.push({
+              Country: key,
+              UniCode: data.code,
+              "Name of University": data.university,
+              "City of University": data.city,
+              "Country of University": data.country,
+            });
+          });
+        });
+
+        var ws = XLSX.utils.json_to_sheet(modifiedUniversities);
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+        XLSX.writeFile(wb, "converted_data.xlsx");
+      }
+    </script>
+  </body>
+</html>
